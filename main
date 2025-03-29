@@ -1,5 +1,5 @@
 #include <BotNRoll.h>
-
+teste
 // Distância mínima para considerar parede (em cm)
 #define DISTANCIA_PAREDE 20
 // Controle de tempo sem delay
