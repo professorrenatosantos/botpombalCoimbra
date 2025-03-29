@@ -1,123 +1,116 @@
 #include <BotNRoll.h>
-#include <BnrOneA.h>
 #include <Servo.h>
 #include "pitches.h"
 
-
-//TESTE
-// Distância mínima para considerar parede (em cm)
+// TESTE
+//  Distância mínima para considerar parede (em cm)
 
 // notes in the melody:
-int melody[] = { NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4};
+int melody[] = {NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4};
 
 // note durations: 4 = quarter note, 8 = eighth note, etc.:
-int noteDurations[] = { 4, 8, 8, 4, 4, 4, 4, 4};
+int noteDurations[] = {4, 8, 8, 4, 4, 4, 4, 4};
 
 BotNRoll robot;
-BnrOneA one;
 
-
-//############################ SegueParede############################################
+// ############################ SegueParede############################################
 const uint16_t DISTANCIA_PAREDE = 300;
 const uint16_t DISTANCIA_PAREDE_FRENTE = 300;
 const uint16_t IDEAL_MIN = 80;
 const uint16_t IDEAL_MAX = 120;
-bool flagSeguelinha=false;
+bool flagSeguelinha = false;
 
-//############################ SegueLinha ############################################
-#define Vtrans 500  // Lower threshold for better sensitivity
-#define BAT_MIN 10.5 // Battery protection
-#define BASE_SPEED 25 // Reduce base speed slightly
-#define TURN_SPEED 25 // Reduce turning speed
+// ############################ SegueLinha ############################################
+#define Vtrans 500          // Lower threshold for better sensitivity
+#define BAT_MIN 10.5        // Battery protection
+#define BASE_SPEED 25       // Reduce base speed slightly
+#define TURN_SPEED 25       // Reduce turning speed
 #define SHARP_TURN_SPEED 65 // Reduce sharp turns
 
 // Adjusted Weights (Boost Left Sensitivity)
 float weights[8] = {1.5, 1.3, 1.2, 1.0, 1.0, 1.2, 1.3, 1.5};
 // Global variable to track last detected sensor
 int lastDetectedSensor = 3; // Assume the center at start
-int preto = 900;
+int preto = 700;
 int branco = 150;
-int sensor[8];
 
 // Function to read sensors and apply weights
-void readSensorsSimple(int sensor[]) {
-    // Get brightness values from the line sensor array on the bottom of the robot.
-    //int sensors[8];
-
-}
-
-
-// Function to read sensors and apply weights
-void readSensors(int sensor[]) {
-    Serial.println("Função Read Sensors:");
-    for(int i = 0; i < 8; i++) {
-        sensor[i] = one.readAdc(i) * weights[i];
+void readSensors(int sensor[])
+{
+    for (int i = 0; i < 8; i++)
+    {
+        sensor[i] = robot.readAdc(i) * weights[i];
     }
 }
 
 // Function to determine movement based on sensor readings
-bool verificaLinhaSala() {
+bool verificaLinhaSala()
+{
     int sensors[8];
     Serial.println("Função Verifica Linhas:");
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
         sensors[i] = robot.readAdc(i);
     }
 
     // Print sensor values to serial monitor.
     Serial.println("LINE SENSOR VALUES:");
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 8; i++)
+    {
         Serial.print(String(sensors[i]) + ", ");
     }
     Serial.println();
 
     Serial.println("Função Verifica Linhas Novamente:");
-    int nSensoresBranco=0;
-
+    int nSensoresBranco = 0;
 
     Serial.print("Sensores Branco = ");
     Serial.println(nSensoresBranco);
     // Find the sensor with the highest reading
-    for (int i = 0; i < 8; i++) {
-        if (sensors[i] < branco) {
+    for (int i = 0; i < 8; i++)
+    {
+        if (sensors[i] < preto)
+        {
             Serial.println(sensors[i]);
-            nSensoresBranco = nSensoresBranco+1;
+            nSensoresBranco = nSensoresBranco + 1;
         }
     }
     Serial.print("Sensores Branco = ");
     Serial.println(nSensoresBranco);
 
-    if(nSensoresBranco>2){
+    if (nSensoresBranco > 2)
+    {
         Serial.print("TRUE Sensores Branco = ");
         Serial.println(nSensoresBranco);
         return true;
     }
-        
-    else {
+
+    else
+    {
         Serial.print("FALSE Sensores Branco = ");
         Serial.println(nSensoresBranco);
         return false;
-}
     }
-      
-        
+}
 
 // Function to determine movement based on sensor readings
-void followLine() {
-    
+void followLine()
+{
+    int sensor[8];
     readSensors(sensor);
 
     int maxSensor = -1;
-    int maxValue = preto; //Vtrans; // Start with threshold value
+    int maxValue = branco; // Vtrans; // Start with threshold value
 
     // Find the sensor with the highest reading
-    for (int i = 0; i < 8; i++) {
-        if (sensor[i] < maxValue) {
+    for (int i = 0; i < 8; i++)
+    {
+        if (sensor[i] < maxValue)
+        {
             maxValue = sensor[i];
             maxSensor = i;
         }
     }
-
-
 
     Serial.print("Detected Sensor: ");
     Serial.println(maxSensor);
@@ -125,49 +118,54 @@ void followLine() {
     int leftSpeed = BASE_SPEED;
     int rightSpeed = BASE_SPEED;
 
-    if (maxSensor != -1) { 
+    if (maxSensor != -1)
+    {
         lastDetectedSensor = maxSensor; // Store last valid detection
     }
 
-    switch (maxSensor) {
-        case 0:  // Gentle left turn
-            leftSpeed = -BASE_SPEED; 
-            rightSpeed = BASE_SPEED;
-            break;
-        case 1:  // Smooth left turn
-            leftSpeed = BASE_SPEED - 10; 
-            rightSpeed = BASE_SPEED + 10;
-            break;
-        case 2:  // Slight left turn
-            leftSpeed = BASE_SPEED - 5;
-            rightSpeed = BASE_SPEED + 5;
-            break;
-        case 3:  
-        case 4:  // Go straight
-            leftSpeed = BASE_SPEED;
-            rightSpeed = BASE_SPEED;
-            break;
-        case 5:  // Slight right turn
-            leftSpeed = BASE_SPEED + 5;
-            rightSpeed = BASE_SPEED - 5;
-            break;
-        case 6:  // Smooth right turn
-            leftSpeed = BASE_SPEED + 10;
-            rightSpeed = BASE_SPEED - 10;
-            break;
-        case 7:  // Gentle right turn
-            leftSpeed = BASE_SPEED;
-            rightSpeed = -BASE_SPEED;
-            break;
-        default:  // Line lost - Adjust recovery
-            if (lastDetectedSensor <= 3) { // If last seen on left
-                leftSpeed = -TURN_SPEED + 10; // Reduce sharpness
-                rightSpeed = TURN_SPEED;
-            } else { // If last seen on right
-                leftSpeed = TURN_SPEED;
-                rightSpeed = -TURN_SPEED + 10;
-            }
-            break;
+    switch (maxSensor)
+    {
+    case 0: // Gentle left turn
+        leftSpeed = -BASE_SPEED;
+        rightSpeed = BASE_SPEED;
+        break;
+    case 1: // Smooth left turn
+        leftSpeed = BASE_SPEED - 10;
+        rightSpeed = BASE_SPEED + 10;
+        break;
+    case 2: // Slight left turn
+        leftSpeed = BASE_SPEED - 5;
+        rightSpeed = BASE_SPEED + 5;
+        break;
+    case 3:
+    case 4: // Go straight
+        leftSpeed = BASE_SPEED;
+        rightSpeed = BASE_SPEED;
+        break;
+    case 5: // Slight right turn
+        leftSpeed = BASE_SPEED + 5;
+        rightSpeed = BASE_SPEED - 5;
+        break;
+    case 6: // Smooth right turn
+        leftSpeed = BASE_SPEED + 10;
+        rightSpeed = BASE_SPEED - 10;
+        break;
+    case 7: // Gentle right turn
+        leftSpeed = BASE_SPEED;
+        rightSpeed = -BASE_SPEED;
+        break;
+    default: // Line lost - Adjust recovery
+        if (lastDetectedSensor <= 3)
+        {                                 // If last seen on left
+            leftSpeed = -TURN_SPEED + 10; // Reduce sharpness
+            rightSpeed = TURN_SPEED;
+        }
+        else
+        { // If last seen on right
+            leftSpeed = TURN_SPEED;
+            rightSpeed = -TURN_SPEED + 10;
+        }
+        break;
     }
 
     Serial.print("Motor Speeds - Left: ");
@@ -175,115 +173,130 @@ void followLine() {
     Serial.print(" Right: ");
     Serial.println(rightSpeed);
 
-    one.move(leftSpeed, rightSpeed);
+    robot.move(leftSpeed, rightSpeed);
 }
 
-
-//TESTE
+// TESTE
 /* The setup function runs once when you press reset or power the board */
-void setup() {
+void setup()
+{
     // Set baud rate to 9600bps for printing values on the serial monitor.
     Serial.begin(9600);
     Serial.println("BOIIIIIIIIII:");
     // Initialize the robot.
     robot.begin();
 
- // Wait for button (PB1) to be pressed.
- while (robot.readButton() != 1) {
+    // Wait for button (PB1) to be pressed.
+    while (robot.readButton() != 1)
+    {
 
-    // Set servo position to 0.
-    robot.servo1(0);
+        // Set servo position to 0.
+        robot.servo1(0);
 
-    // Get distances from the laser sensors on the front of the robot.
-    uint16_t left = robot.getLidarLeftDistance();
-    uint16_t front = robot.getLidarFrontDistance();
-    uint16_t right = robot.getLidarRightDistance();
+        // Get distances from the laser sensors on the front of the robot.
+        uint16_t left = robot.getLidarLeftDistance();
+        uint16_t front = robot.getLidarFrontDistance();
+        uint16_t right = robot.getLidarRightDistance();
 
-    // Print distance values to serial monitor.
-    Serial.println("LIDAR VALUES:");
-    Serial.println("Left: " + String(left) + "mm");
-    Serial.println("Front: " + String(front) + "mm");
-    Serial.println("Right: " + String(right) + "mm");
+        // Print distance values to serial monitor.
+        Serial.println("LIDAR VALUES:");
+        Serial.println("Left: " + String(left) + "mm");
+        Serial.println("Front: " + String(front) + "mm");
+        Serial.println("Right: " + String(right) + "mm");
 
-    // Get brightness values from the line sensor array on the bottom of the robot.
-    int sensors[8];
-    for (int i = 0; i < 8; i++) {
-        sensors[i] = robot.readAdc(i);
+        // Get brightness values from the line sensor array on the bottom of the robot.
+        int sensors[8];
+        for (int i = 0; i < 8; i++)
+        {
+            sensors[i] = robot.readAdc(i);
+        }
+
+        // Print sensor values to serial monitor.
+        Serial.println("LINE SENSOR VALUES:");
+        for (int i = 0; i < 8; i++)
+        {
+            Serial.print(String(sensors[i]) + ", ");
+        }
+        Serial.println();
+
+        // Print LDR value to serial monitor.
+        Serial.println("LDR SENSOR VALUE:");
+        Serial.print(robot.getLDRValue());
+        Serial.println();
+
+        delay(2000);
     }
-
-    // Print sensor values to serial monitor.
-    Serial.println("LINE SENSOR VALUES:");
-    for (int i = 0; i < 8; i++) {
-        Serial.print(String(sensors[i]) + ", ");
-    }
-    Serial.println();
-
-    // Print LDR value to serial monitor.
-    Serial.println("LDR SENSOR VALUE:");
-    Serial.print(robot.getLDRValue());
-    Serial.println();
-
-    delay(2000);
+    // robot.begin();
+    robot.move(BASE_SPEED, BASE_SPEED);
+    // delay(500);
 }
-
-}
-//TESTE
+// TESTE
 /* The setup function runs once when you press reset or power the board */
-void loop() {
+void loop()
+{
+    // Serial.println("BOIIIIIIIIII:2");
+    // followLine();
+    // Serial.println("BOIIIIIIIIII:3");
+
     uint16_t left = robot.getLidarLeftDistance();
     uint16_t front = robot.getLidarFrontDistance();
     uint16_t right = robot.getLidarRightDistance();
 
-    Serial.print("L: "); Serial.print(left);
-    Serial.print(" | F: "); Serial.print(front);
-    Serial.print(" | R: "); Serial.println(right);
-
-
+    Serial.print("L: ");
+    Serial.print(left);
+    Serial.print(" | F: ");
+    Serial.print(front);
+    Serial.print(" | R: ");
+    Serial.println(right);
 
     // PRIORIDADE 1: Virar à esquerda se NÃO houver parede à esquerda
-    if (left > DISTANCIA_PAREDE) {
+    if (left > DISTANCIA_PAREDE)
+    {
         robot.move(10, 60);
         Serial.println("Virar à esquerda (sem parede à esquerda)");
 
-        if(verificaLinhaSala()){
-            flagSeguelinha=true;
+        if (verificaLinhaSala())
+        {
+            flagSeguelinha = true;
             Serial.println("segue linha: true");
-            while (flagSeguelinha)
+            if (flagSeguelinha)
             {
-                tone(9, melody[0],1000);
-            
+                robot.stop();
+                tone(9, melody[0], 500);
+                robot.move(30, 30);
                 Serial.println("segue linha: true");
-                //one.move(BASE_SPEED, BASE_SPEED);
-                while (true)
+                // robot.move(BASE_SPEED, BASE_SPEED);
+                while (flagSeguelinha)
                 {
+                    Serial.println("segue linha: ciclo infinito");
                     followLine();
                 }
-                
-                
             }
-            
         }
-            
     }
     // PRIORIDADE 2: Virar à direita se HÁ parede à frente E à esquerda
-    else if (front < DISTANCIA_PAREDE_FRENTE && left < DISTANCIA_PAREDE) {
-        robot.move(60, -10);  // curva acentuada à direita
+    else if (front < DISTANCIA_PAREDE_FRENTE && left < DISTANCIA_PAREDE)
+    {
+        robot.move(60, -10); // curva acentuada à direita
         Serial.println("Virar à direita (parede à frente e à esquerda)");
     }
     // PRIORIDADE 3: Ajustar distância à parede da esquerda
-    else {
-        if (left < IDEAL_MIN) {
+    else
+    {
+        if (left < IDEAL_MIN)
+        {
             robot.move(35, 10);
             Serial.println("Afastar da parede à esquerda");
         }
-        else if (left > IDEAL_MAX) {
+        else if (left > IDEAL_MAX)
+        {
             robot.move(10, 35);
             Serial.println("Aproximar da parede à esquerda");
         }
-        else {
+        else
+        {
             robot.move(35, 35);
             Serial.println("Distância ideal — seguir em frente");
         }
     }
-   
 }
