@@ -1,14 +1,19 @@
 #include <BotNRoll.h>
-teste
+#include <BnrOneA.h>
+#include <Servo.h>
+//TESTE
 // Distância mínima para considerar parede (em cm)
-#define DISTANCIA_PAREDE 20
-// Controle de tempo sem delay
-unsigned long tempoAnterior = 0;
-const int intervaloLeitura = 100;  // Tempo entre leituras (ms)
+
 
 BotNRoll robot;
+BnrOneA one;
 
+const uint16_t DISTANCIA_PAREDE = 300;
+const uint16_t DISTANCIA_PAREDE_FRENTE = 300;
+const uint16_t IDEAL_MIN = 80;
+const uint16_t IDEAL_MAX = 120;
 
+//TESTE
 /* The setup function runs once when you press reset or power the board */
 void setup() {
     // Set baud rate to 9600bps for printing values on the serial monitor.
@@ -17,51 +22,49 @@ void setup() {
     // Initialize the robot.
     robot.begin();
 
-    // Wait for button (PB1) to be pressed.
-    while (robot.readButton() != 1) {
-
-        // Set servo position to 0.
-        robot.servo1(0);
-
-        // Get distances from the laser sensors on the front of the robot.
-        uint16_t left = robot.getLidarLeftDistance();
-        uint16_t front = robot.getLidarFrontDistance();
-        uint16_t right = robot.getLidarRightDistance();
-
-        // Print distance values to serial monitor.
-        Serial.println("LIDAR VALUES:");
-        Serial.println("Left: " + String(left) + "mm");
-        Serial.println("Front: " + String(front) + "mm");
-        Serial.println("Right: " + String(right) + "mm");
-
-        // Get brightness values from the line sensor array on the bottom of the robot.
-        int sensors[8];
-        for (int i = 0; i < 8; i++) {
-            sensors[i] = robot.readAdc(i);
-        }
-
-        // Print sensor values to serial monitor.
-        Serial.println("LINE SENSOR VALUES:");
-        for (int i = 0; i < 8; i++) {
-            Serial.print(String(sensors[i]) + ", ");
-        }
-        Serial.println();
-
         // Print LDR value to serial monitor.
-        Serial.println("LDR SENSOR VALUE:");
-        Serial.print(robot.getLDRValue());
-        Serial.println();
-
-        delay(2000);
-    }
+    Serial.println("LDR SENSOR VALUE:");
+    Serial.print(robot.getLDRValue());
+    Serial.println();
 
 }
-
-/* The loop function runs over and over again forever */
+//TESTE
+/* The setup function runs once when you press reset or power the board */
 void loop() {
-    robot.servo1(180);
-    delay(2000);
-    robot.servo1(0);
-    delay(2000);
+    uint16_t left = robot.getLidarLeftDistance();
+    uint16_t front = robot.getLidarFrontDistance();
+    uint16_t right = robot.getLidarRightDistance();
+
+    Serial.print("L: "); Serial.print(left);
+    Serial.print(" | F: "); Serial.print(front);
+    Serial.print(" | R: "); Serial.println(right);
+
+
+
+    // PRIORIDADE 1: Virar à esquerda se NÃO houver parede à esquerda
+    if (left > DISTANCIA_PAREDE) {
+        robot.move(10, 60);
+        Serial.println("Virar à esquerda (sem parede à esquerda)");
+    }
+    // PRIORIDADE 2: Virar à direita se HÁ parede à frente E à esquerda
+    else if (front < DISTANCIA_PAREDE_FRENTE && left < DISTANCIA_PAREDE) {
+        robot.move(60, -10);  // curva acentuada à direita
+        Serial.println("Virar à direita (parede à frente e à esquerda)");
+    }
+    // PRIORIDADE 3: Ajustar distância à parede da esquerda
+    else {
+        if (left < IDEAL_MIN) {
+            robot.move(35, 10);
+            Serial.println("Afastar da parede à esquerda");
+        }
+        else if (left > IDEAL_MAX) {
+            robot.move(10, 35);
+            Serial.println("Aproximar da parede à esquerda");
+        }
+        else {
+            robot.move(35, 35);
+            Serial.println("Distância ideal — seguir em frente");
+        }
+    }
+   
 }
-    
