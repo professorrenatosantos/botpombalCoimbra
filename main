@@ -1,6 +1,9 @@
 #include <BotNRoll.h>
 #include <Servo.h>
 #include "pitches.h"
+#include <BnrOneA.h>   
+#include <EEPROM.h>    
+#include <SPI.h> 
 
 // TESTE
 //  Distância mínima para considerar parede (em cm)
@@ -12,6 +15,7 @@ int melody[] = {NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4
 int noteDurations[] = {4, 8, 8, 4, 4, 4, 4, 4};
 
 BotNRoll robot;
+BnrOneA one;  // Bot'n Roll ONE A object
 
 // ############################ SegueParede############################################
 const uint16_t DISTANCIA_PAREDE = 300;
@@ -21,6 +25,7 @@ const uint16_t IDEAL_MAX = 120;
 bool flagSeguelinha = false;
 
 // ############################ SegueLinha ############################################
+#define SSPIN  2     
 #define Vtrans 500          // Lower threshold for better sensitivity
 #define BAT_MIN 10.5        // Battery protection
 #define BASE_SPEED 25       // Reduce base speed slightly
@@ -31,7 +36,7 @@ bool flagSeguelinha = false;
 float weights[8] = {1.5, 1.3, 1.2, 1.0, 1.0, 1.2, 1.3, 1.5};
 // Global variable to track last detected sensor
 int lastDetectedSensor = 3; // Assume the center at start
-int preto = 700;
+int preto = 300;
 int branco = 150;
 
 // Function to read sensors and apply weights
@@ -39,7 +44,8 @@ void readSensors(int sensor[])
 {
     for (int i = 0; i < 8; i++)
     {
-        sensor[i] = robot.readAdc(i) * weights[i];
+        //sensor[i] = robot.readAdc(i) * weights[i];
+        sensor[i] = robot.readAdc(i);
     }
 }
 
@@ -183,6 +189,11 @@ void setup()
     // Set baud rate to 9600bps for printing values on the serial monitor.
     Serial.begin(9600);
     Serial.println("BOIIIIIIIIII:");
+
+    one.spiConnect(SSPIN);  
+    one.stop();              
+    one.minBat(BAT_MIN);
+
     // Initialize the robot.
     robot.begin();
 
@@ -262,8 +273,9 @@ void loop()
             if (flagSeguelinha)
             {
                 robot.stop();
-                tone(9, melody[0], 500);
-                robot.move(30, 30);
+                tone(9, melody[0], 2000);
+                delay(2000);
+                one.move(BASE_SPEED, BASE_SPEED);
                 Serial.println("segue linha: true");
                 // robot.move(BASE_SPEED, BASE_SPEED);
                 while (flagSeguelinha)
