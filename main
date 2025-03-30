@@ -1,45 +1,84 @@
-#include <BnrOneA.h>   
-#include <EEPROM.h>    
-#include <SPI.h>       
+#include <BotNRoll.h>
+     
 
-BnrOneA one;  // Bot'n Roll ONE A object
+BotNRoll robot;
 
-// Constants
-#define SSPIN  2    
-#define M1  1       
-#define M2  2       
+// Constants     
 #define Vtrans 500  // Lower threshold for better sensitivity
 #define BAT_MIN 10.5 // Battery protection
-#define BASE_SPEED 25 // Reduce base speed slightly
-#define TURN_SPEED 25 // Reduce turning speed
-#define SHARP_TURN_SPEED 65 // Reduce sharp turns
+#define BASE_SPEED 15 // Reduce base speed slightly
+#define TURN_SPEED 15 // Reduce turning speed
+#define TURN_HARD_PLUS 1.6 
+#define TURN_MEDIUM_PLUS 1.4 
+#define TURN_SLOW_PLUS 1.2 
+#define TURN_HARD_MINUS 0.4 
+#define TURN_MEDIUM_MINUS 0.6 
+#define TURN_SLOW_MINUS 0.8 
 
 // Adjusted Weights (Boost Left Sensitivity)
-float weights[8] = {1.5, 1.3, 1.2, 1.0, 1.0, 1.2, 1.3, 1.5}; 
+float weights[8] = {0.7, 0.5, 0.3, 0.1, 0.1, 0.3, 0.5, 0.7}; 
 
 // Global variable to track last detected sensor
 int lastDetectedSensor = 3; // Assume the center at start
-int branco = 900;
+int branco = 200;
 
 void setup() {  
-    Serial.begin(57600);     
-    one.spiConnect(SSPIN);  
-    one.stop();              
-    one.minBat(BAT_MIN);
-    one.lcd1(" Bot'n Roll ONE");
+    Serial.begin(9600);
+    Serial.println("BOIIIIIIIIII:");
 
-    while(one.readButton() == 0) {
-        one.lcd2("Press a button!");
-        delay(50);
+    // Initialize the robot.
+    robot.begin();
+
+    // Wait for button (PB1) to be pressed.
+    while (robot.readButton() != 1)
+    {
+
+        // Set servo position to 0.
+        robot.servo1(0);
+
+        // Get distances from the laser sensors on the front of the robot.
+        uint16_t left = robot.getLidarLeftDistance();
+        uint16_t front = robot.getLidarFrontDistance();
+        uint16_t right = robot.getLidarRightDistance();
+
+        // Print distance values to serial monitor.
+        Serial.println("LIDAR VALUES:");
+        Serial.println("Left: " + String(left) + "mm");
+        Serial.println("Front: " + String(front) + "mm");
+        Serial.println("Right: " + String(right) + "mm");
+
+        // Get brightness values from the line sensor array on the bottom of the robot.
+        int sensors[8];
+        for (int i = 0; i < 8; i++)
+        {
+            sensors[i] = robot.readAdc(i);
+        }
+
+        // Print sensor values to serial monitor.
+        Serial.println("LINE SENSOR VALUES:");
+        for (int i = 0; i < 8; i++)
+        {
+            Serial.print(String(sensors[i]) + ", ");
+        }
+        Serial.println();
+
+        // Print LDR value to serial monitor.
+        Serial.println("LDR SENSOR VALUE:");
+        Serial.print(robot.getLDRValue());
+        Serial.println();
+
+        delay(2000);
     }
-    one.move(BASE_SPEED, BASE_SPEED);
-    one.lcd2("Line Following!");	
+// robot.begin();
+robot.move(BASE_SPEED, BASE_SPEED);
+// delay(500);
 }
 
 // Function to read sensors and apply weights
 void readSensors(int sensor[]) {
     for(int i = 0; i < 8; i++) {
-        sensor[i] = one.readAdc(i) * weights[i];
+        //sensor[i] = robot.readAdc(i) * weights[i];
+        sensor[i] = robot.readAdc(i);
     }
 }
 
@@ -48,39 +87,39 @@ void followLine() {
     int sensor[8];
     readSensors(sensor);
 
-    int maxSensor = -1;
-    int maxValue = branco; //Vtrans; // Start with threshold value
+    int minSensor = -1;
+    int minValue = branco; //Vtrans; // Start with threshold value
 
     // Find the sensor with the highest reading
     for (int i = 0; i < 8; i++) {
-        if (sensor[i] < maxValue) {
-            maxValue = sensor[i];
-            maxSensor = i;
+        if (sensor[i] < minValue) {
+            minValue = sensor[i];
+            minSensor = i;
         }
     }
 
     Serial.print("Detected Sensor: ");
-    Serial.println(maxSensor);
+    Serial.println(minSensor);
 
     int leftSpeed = BASE_SPEED;
     int rightSpeed = BASE_SPEED;
 
-    if (maxSensor != -1) { 
-        lastDetectedSensor = maxSensor; // Store last valid detection
+    if (minSensor != -1) { 
+        lastDetectedSensor = minSensor; // Store last valid detection
     }
 
-    switch (maxSensor) {
+    switch (minSensor) {
         case 0:  // Gentle left turn
-            leftSpeed = -BASE_SPEED; 
-            rightSpeed = BASE_SPEED;
+            leftSpeed = BASE_SPEED * TURN_HARD_MINUS;
+            rightSpeed = BASE_SPEED * TURN_HARD_PLUS;
             break;
         case 1:  // Smooth left turn
-            leftSpeed = BASE_SPEED - 10; 
-            rightSpeed = BASE_SPEED + 10;
+            leftSpeed = BASE_SPEED * TURN_MEDIUM_MINUS; 
+            rightSpeed = BASE_SPEED * TURN_MEDIUM_PLUS;
             break;
         case 2:  // Slight left turn
-            leftSpeed = BASE_SPEED - 5;
-            rightSpeed = BASE_SPEED + 5;
+            leftSpeed = BASE_SPEED * TURN_SLOW_MINUS;
+            rightSpeed = BASE_SPEED * TURN_SLOW_PLUS;
             break;
         case 3:  
         case 4:  // Go straight
@@ -88,16 +127,16 @@ void followLine() {
             rightSpeed = BASE_SPEED;
             break;
         case 5:  // Slight right turn
-            leftSpeed = BASE_SPEED + 5;
-            rightSpeed = BASE_SPEED - 5;
+            leftSpeed = BASE_SPEED * TURN_SLOW_PLUS;
+            rightSpeed = BASE_SPEED * TURN_SLOW_MINUS;
             break;
         case 6:  // Smooth right turn
-            leftSpeed = BASE_SPEED + 10;
-            rightSpeed = BASE_SPEED - 10;
+            leftSpeed = BASE_SPEED * TURN_MEDIUM_PLUS;
+            rightSpeed = BASE_SPEED * TURN_MEDIUM_MINUS;
             break;
         case 7:  // Gentle right turn
-            leftSpeed = BASE_SPEED;
-            rightSpeed = -BASE_SPEED;
+            leftSpeed = BASE_SPEED * TURN_HARD_PLUS;
+            rightSpeed = BASE_SPEED * TURN_HARD_MINUS;
             break;
         default:  // Line lost - Adjust recovery
             if (lastDetectedSensor <= 3) { // If last seen on left
@@ -115,19 +154,19 @@ void followLine() {
     Serial.print(" Right: ");
     Serial.println(rightSpeed);
 
-    one.move(leftSpeed, rightSpeed);
+    robot.move(leftSpeed, rightSpeed);
 }
 
 void loop() {
     followLine();
-    while(one.readButton() == 1) {
+    while(robot.readButton() == 1) {
         branco = branco - 2;
-        one.lcd2("branco = " , branco);
+        robot.lcd2("branco = " , branco);
         delay(50);
     }
-    while(one.readButton() == 2) {
+    while(robot.readButton() == 2) {
         branco = branco + 2;
-        one.lcd2("branco = " , branco);
+        robot.lcd2("branco = " , branco);
         delay(50);
     }
 }
