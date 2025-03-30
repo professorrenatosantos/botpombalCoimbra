@@ -195,6 +195,9 @@ void encontrarParedeEsquerda(){
     robot.move(30,30);
 }
 
+
+
+
 // TESTE
 /* The setup function runs once when you press reset or power the board */
 void setup()
@@ -293,7 +296,7 @@ void segueParedeEsquerda(){
                     Serial.println(n);
                     //delay(1000);
                     //if(verificaLinhaSala(3) && millis() - tempoEntradaSala >= 4000){
-                    if(n>3 && millis() - tempoEntradaSala >= 4000){
+                    if(n>3 && millis() - tempoEntradaSala >= 5000){
                         flagEsqueda=false;
                         robot.lcd1("SEGUE LINHA SAI SALA");
                         //tone(9, 1500, 200);
@@ -349,7 +352,7 @@ void segueParedeDireita(){
     // PRIORIDADE 1: Virar à direita se NÃO houver parede à direita
     if (right > DISTANCIA_PAREDE)
     {
-        robot.move(60, 1);
+        robot.move(65, 1);
         Serial.println("Virar à direita (sem parede à direita)");
         if (verificaLinhaSala(1))
         {
@@ -382,11 +385,11 @@ void segueParedeDireita(){
                         tone(9, 1500, 1000);
                         robot.move(-30,-30);
                         delay(200);
-                        while (robot.readAdc(3)<branco)
+                        while (robot.readAdc(3)<branco || robot.readAdc(4)<branco)
                         {
                             robot.move(-15,15);
                         }
-                        while (robot.readAdc(3)>branco)
+                        while (robot.readAdc(3)>branco || robot.readAdc(4)>branco)
                         {
                             robot.move(-15,15);
                         }
@@ -453,7 +456,7 @@ void segueParedeEsquerdaFinal(){
         robot.move(10,10);
         delay(1500);
         robot.stop();
-        robot.move(0,0);
+        
     }
 
     // PRIORIDADE 1: Virar à esquerda se NÃO houver parede à esquerda
