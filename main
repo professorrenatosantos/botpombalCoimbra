@@ -84,7 +84,6 @@ bool verificaLinhaSala(int nbrancos)
     {
         Serial.print("TRUE Sensores Branco = ");
         Serial.println(nSensoresBranco);
-        tone(9, 200, 200);
         return true;
     }
 
@@ -281,7 +280,7 @@ void segueParedeEsquerda(){
             if (flagSeguelinha)
             {
                 //robot.stop();
-                tone(9, 1000, 200);
+                //tone(9, 1000, 200);
                 robot.lcd1("SEGUE LINHA TRUE");
                 //robot.move(BASE_SPEED, BASE_SPEED);
                 Serial.println("segue linha: true");
@@ -297,7 +296,7 @@ void segueParedeEsquerda(){
                     if(n>3 && millis() - tempoEntradaSala >= 4000){
                         flagEsqueda=false;
                         robot.lcd1("SEGUE LINHA SAI SALA");
-                        tone(9, 1500, 200);
+                        //tone(9, 1500, 200);
                         delay(700);
                         flagEncomenda=true;
                         break;
@@ -362,7 +361,7 @@ void segueParedeDireita(){
             {
                 uint16_t front = robot.getLidarFrontDistance();
                 //robot.stop();
-                tone(9, 1000, 200);
+                //tone(9, 1000, 200);
                 robot.lcd1("SEGUE LINHA TRUE");
                 //robot.move(BASE_SPEED, BASE_SPEED);
                 Serial.println("segue linha: true");
@@ -378,6 +377,9 @@ void segueParedeDireita(){
                     //if(verificaLinhaSala(3) && millis() - tempoEntradaSala >= 4000){
                     if(front<DISTANCIA_PAREDE && millis() - tempoEntradaSala >= 4000 && flagEncomenda){
                         robot.stop();
+                        tone(9, 1500, 1000);
+                        delay(400);
+                        tone(9, 1500, 1000);
                         robot.move(-30,-30);
                         delay(200);
                         while (robot.readAdc(3)<branco)
@@ -395,8 +397,8 @@ void segueParedeDireita(){
                     if(n>3 && flagEncomenda==false){
                         flagEsqueda=false;
                         robot.lcd1("SEGUE LINHA SAI SALA");
-                        tone(9, 1500, 200);
-                        delay(700);
+                        //tone(9, 1500, 200);
+                        delay(1500);
                         break;
                     }
 
@@ -431,6 +433,64 @@ void segueParedeDireita(){
     }
 }
 
+void segueParedeEsquerdaFinal(){
+    
+
+    uint16_t left = robot.getLidarLeftDistance();
+    uint16_t front = robot.getLidarFrontDistance();
+    uint16_t right = robot.getLidarRightDistance();
+
+    Serial.print("L: ");
+    Serial.print(left);
+    Serial.print(" | F: ");
+    Serial.print(front);
+    Serial.print(" | R: ");
+    Serial.println(right);
+
+
+    if (verificaLinhaSala(1))
+    {
+        robot.move(10,10);
+        delay(1500);
+        robot.stop();
+        robot.move(0,0);
+    }
+
+    // PRIORIDADE 1: Virar à esquerda se NÃO houver parede à esquerda
+    if (left > DISTANCIA_PAREDE)
+    {
+        robot.move(2, 40);
+        Serial.println("Virar à esquerda (sem parede à esquerda)");
+
+       
+    }
+    // PRIORIDADE 2: Virar à direita se HÁ parede à frente E à esquerda
+    else if (front < DISTANCIA_PAREDE_FRENTE && left < DISTANCIA_PAREDE)
+    {
+        robot.move(60, -10); // curva acentuada à direita
+        Serial.println("Virar à direita (parede à frente e à esquerda)");
+    }
+    // PRIORIDADE 3: Ajustar distância à parede da esquerda
+    else
+    {
+        if (left < IDEAL_MIN)
+        {
+            robot.move(35, 10);
+            Serial.println("Afastar da parede à esquerda");
+        }
+        else if (left > IDEAL_MAX)
+        {
+            robot.move(10, 35);
+            Serial.println("Aproximar da parede à esquerda");
+        }
+        else
+        {
+            robot.move(35, 35);
+            Serial.println("Distância ideal — seguir em frente");
+        }
+    }
+}
+
 // TESTE
 /* The setup function runs once when you press reset or power the board */
 void loop()
@@ -441,14 +501,14 @@ void loop()
     if (flagEsqueda)
         segueParedeEsquerda();
     else if(flagEncomenda && flagEsqueda==false){
-        tone(9, 100, 300);
-        tone(9, 200, 300);
-        tone(9, 300, 300);
-        tone(9, 400, 300);
+        //tone(9, 100, 300);
+        // tone(9, 200, 300);
+        // tone(9, 300, 300);
+        // tone(9, 400, 300);
         segueParedeDireita();
     }
     else{
-        segueParedeEsquerda();
+        segueParedeEsquerdaFinal();
     }
 
 }
