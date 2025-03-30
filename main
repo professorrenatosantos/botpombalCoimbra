@@ -1,10 +1,7 @@
 #include <BotNRoll.h>
 #include <Servo.h>
 #include "pitches.h"
-#include <BnrOneA.h>   
-#include <EEPROM.h>    
-#include <SPI.h> 
-
+  
 // TESTE
 //  Distância mínima para considerar parede (em cm)
 
@@ -15,7 +12,6 @@ int melody[] = {NOTE_C4, NOTE_G3, NOTE_G3, NOTE_A3, NOTE_G3, 0, NOTE_B3, NOTE_C4
 int noteDurations[] = {4, 8, 8, 4, 4, 4, 4, 4};
 
 BotNRoll robot;
-BnrOneA one;  // Bot'n Roll ONE A object
 
 // ############################ SegueParede############################################
 const uint16_t DISTANCIA_PAREDE = 300;
@@ -23,14 +19,18 @@ const uint16_t DISTANCIA_PAREDE_FRENTE = 300;
 const uint16_t IDEAL_MIN = 80;
 const uint16_t IDEAL_MAX = 120;
 bool flagSeguelinha = false;
+bool flagEsqueda = true;
+bool flagEncomenda = false;
 
 // ############################ SegueLinha ############################################
 #define SSPIN  2     
 #define Vtrans 500          // Lower threshold for better sensitivity
 #define BAT_MIN 10.5        // Battery protection
-#define BASE_SPEED 25       // Reduce base speed slightly
-#define TURN_SPEED 25       // Reduce turning speed
+#define BASE_SPEED 20       // Reduce base speed slightly
+#define TURN_SPEED 15       // Reduce turning speed
 #define SHARP_TURN_SPEED 65 // Reduce sharp turns
+#define VELOCIDADE 0.5
+float Kp = 10.0;
 
 // Adjusted Weights (Boost Left Sensitivity)
 float weights[8] = {1.5, 1.3, 1.2, 1.0, 1.0, 1.2, 1.3, 1.5};
@@ -38,6 +38,8 @@ float weights[8] = {1.5, 1.3, 1.2, 1.0, 1.0, 1.2, 1.3, 1.5};
 int lastDetectedSensor = 3; // Assume the center at start
 int preto = 300;
 int branco = 150;
+
+static unsigned long tempoEntradaSala = 0;
 
 // Function to read sensors and apply weights
 void readSensors(int sensor[])
@@ -50,44 +52,39 @@ void readSensors(int sensor[])
 }
 
 // Function to determine movement based on sensor readings
-bool verificaLinhaSala()
+bool verificaLinhaSala(int nbrancos)
 {
     int sensors[8];
+    int nSensoresBranco = 0;
     Serial.println("Função Verifica Linhas:");
+
     for (int i = 0; i < 8; i++)
     {
         sensors[i] = robot.readAdc(i);
-    }
-
-    // Print sensor values to serial monitor.
-    Serial.println("LINE SENSOR VALUES:");
-    for (int i = 0; i < 8; i++)
-    {
-        Serial.print(String(sensors[i]) + ", ");
-    }
-    Serial.println();
-
-    Serial.println("Função Verifica Linhas Novamente:");
-    int nSensoresBranco = 0;
-
-    Serial.print("Sensores Branco = ");
-    Serial.println(nSensoresBranco);
-    // Find the sensor with the highest reading
-    for (int i = 0; i < 8; i++)
-    {
-        if (sensors[i] < preto)
+        if (sensors[i] < branco)
         {
             Serial.println(sensors[i]);
             nSensoresBranco = nSensoresBranco + 1;
         }
     }
+
+    // // Print sensor values to serial monitor.
+    // Serial.println("LINE SENSOR VALUES:");
+    // for (int i = 0; i < 8; i++)
+    // {
+    //     Serial.print(String(sensors[i]) + ", ");
+    // }
+    // Serial.println();
+
+    
     Serial.print("Sensores Branco = ");
     Serial.println(nSensoresBranco);
 
-    if (nSensoresBranco > 2)
+    if (nSensoresBranco > nbrancos)
     {
         Serial.print("TRUE Sensores Branco = ");
         Serial.println(nSensoresBranco);
+        tone(9, 200, 200);
         return true;
     }
 
@@ -99,87 +96,104 @@ bool verificaLinhaSala()
     }
 }
 
-// Function to determine movement based on sensor readings
-void followLine()
-{
-    int sensor[8];
-    readSensors(sensor);
 
-    int maxSensor = -1;
-    int maxValue = branco; // Vtrans; // Start with threshold value
 
-    // Find the sensor with the highest reading
+int followLine(){
+
+    int sensors[8];
+    int nSensoresBranco=0;
+
+    for (int i = 0; i < 8; i++) {
+        sensors[i] = robot.readAdc(i);
+    }
+
+    if (sensors[7] <= branco)
+    {
+        robot.move(40 * VELOCIDADE, -20 * VELOCIDADE);
+    }
+
+    if (sensors[6]  <= branco)
+    {
+        robot.move(40 * VELOCIDADE, -5 * VELOCIDADE);
+    }
+
+    if (sensors[5]  <= branco)
+    {
+        robot.move(40 * VELOCIDADE, 7 * VELOCIDADE);
+    }
+
+    if (sensors[4]  && sensors[3] <= branco)
+    {
+        robot.move(30 * VELOCIDADE, 30 * VELOCIDADE);
+    } 
+
+    if (sensors[2]  <= branco)
+    {
+        robot.move(7 * VELOCIDADE, 40 * VELOCIDADE);
+    } 
+
+    if (sensors[1]  <= branco)
+    {
+        robot.move(-5 * VELOCIDADE, 40 * VELOCIDADE);
+    } 
+
+    if (sensors[0]  <= branco)
+    {
+        robot.move(-20 * VELOCIDADE, 40 * VELOCIDADE);
+    }  
+
     for (int i = 0; i < 8; i++)
     {
-        if (sensor[i] < maxValue)
+        if (sensors[i] < branco)
         {
-            maxValue = sensor[i];
-            maxSensor = i;
+            nSensoresBranco = nSensoresBranco + 1;
         }
     }
+    return nSensoresBranco;
 
-    Serial.print("Detected Sensor: ");
-    Serial.println(maxSensor);
+    // int nSensoresBranco = 0;
 
-    int leftSpeed = BASE_SPEED;
-    int rightSpeed = BASE_SPEED;
+    // Serial.print("Sensores Branco = ");
+    // Serial.println(nSensoresBranco);
+    // // Find the sensor with the highest reading
+    // for (int i = 0; i < 8; i++)
+    // {
+    //     if (sensors[i] < branco)
+    //     {
+    //         Serial.println(sensors[i]);
+    //         nSensoresBranco = nSensoresBranco + 1;
+    //     }
+    // }
+    // Serial.print("Sensores Branco = ");
+    // Serial.println(nSensoresBranco);
 
-    if (maxSensor != -1)
+    // if (nSensoresBranco > 4)
+    // {
+    //     Serial.print("TRUE Sensores Branco = ");
+    //     Serial.println(nSensoresBranco);
+    //     tone(9, 200, 200);
+    //     return true;
+    // }
+
+    // else
+    // {
+    //     Serial.print("FALSE Sensores Branco = ");
+    //     Serial.println(nSensoresBranco);
+    //     return false;
+    // }
+}
+
+void encontrarParedeEsquerda(){
+    uint16_t left = robot.getLidarLeftDistance();
+    Serial.print("L: ");
+    Serial.print(left);
+
+    while (left>DISTANCIA_PAREDE)
     {
-        lastDetectedSensor = maxSensor; // Store last valid detection
+        robot.move(-30,30);
+        left = robot.getLidarLeftDistance();    
     }
-
-    switch (maxSensor)
-    {
-    case 0: // Gentle left turn
-        leftSpeed = -BASE_SPEED;
-        rightSpeed = BASE_SPEED;
-        break;
-    case 1: // Smooth left turn
-        leftSpeed = BASE_SPEED - 10;
-        rightSpeed = BASE_SPEED + 10;
-        break;
-    case 2: // Slight left turn
-        leftSpeed = BASE_SPEED - 5;
-        rightSpeed = BASE_SPEED + 5;
-        break;
-    case 3:
-    case 4: // Go straight
-        leftSpeed = BASE_SPEED;
-        rightSpeed = BASE_SPEED;
-        break;
-    case 5: // Slight right turn
-        leftSpeed = BASE_SPEED + 5;
-        rightSpeed = BASE_SPEED - 5;
-        break;
-    case 6: // Smooth right turn
-        leftSpeed = BASE_SPEED + 10;
-        rightSpeed = BASE_SPEED - 10;
-        break;
-    case 7: // Gentle right turn
-        leftSpeed = BASE_SPEED;
-        rightSpeed = -BASE_SPEED;
-        break;
-    default: // Line lost - Adjust recovery
-        if (lastDetectedSensor <= 3)
-        {                                 // If last seen on left
-            leftSpeed = -TURN_SPEED + 10; // Reduce sharpness
-            rightSpeed = TURN_SPEED;
-        }
-        else
-        { // If last seen on right
-            leftSpeed = TURN_SPEED;
-            rightSpeed = -TURN_SPEED + 10;
-        }
-        break;
-    }
-
-    Serial.print("Motor Speeds - Left: ");
-    Serial.print(leftSpeed);
-    Serial.print(" Right: ");
-    Serial.println(rightSpeed);
-
-    robot.move(leftSpeed, rightSpeed);
+    robot.move(30,30);
 }
 
 // TESTE
@@ -189,10 +203,6 @@ void setup()
     // Set baud rate to 9600bps for printing values on the serial monitor.
     Serial.begin(9600);
     Serial.println("BOIIIIIIIIII:");
-
-    one.spiConnect(SSPIN);  
-    one.stop();              
-    one.minBat(BAT_MIN);
 
     // Initialize the robot.
     robot.begin();
@@ -237,17 +247,13 @@ void setup()
 
         delay(2000);
     }
-    // robot.begin();
-    robot.move(BASE_SPEED, BASE_SPEED);
-    // delay(500);
+    
+    encontrarParedeEsquerda();
+
 }
-// TESTE
-/* The setup function runs once when you press reset or power the board */
-void loop()
-{
-    // Serial.println("BOIIIIIIIIII:2");
-    // followLine();
-    // Serial.println("BOIIIIIIIIII:3");
+
+void segueParedeEsquerda(){
+    
 
     uint16_t left = robot.getLidarLeftDistance();
     uint16_t front = robot.getLidarFrontDistance();
@@ -263,25 +269,39 @@ void loop()
     // PRIORIDADE 1: Virar à esquerda se NÃO houver parede à esquerda
     if (left > DISTANCIA_PAREDE)
     {
-        robot.move(10, 60);
+        robot.move(2, 40);
         Serial.println("Virar à esquerda (sem parede à esquerda)");
 
-        if (verificaLinhaSala())
+        if (verificaLinhaSala(1))
         {
+            robot.move(10,10);
+            tempoEntradaSala = millis();
             flagSeguelinha = true;
             Serial.println("segue linha: true");
             if (flagSeguelinha)
             {
-                robot.stop();
-                tone(9, melody[0], 2000);
-                delay(2000);
-                one.move(BASE_SPEED, BASE_SPEED);
+                //robot.stop();
+                tone(9, 1000, 200);
+                robot.lcd1("SEGUE LINHA TRUE");
+                //robot.move(BASE_SPEED, BASE_SPEED);
                 Serial.println("segue linha: true");
                 // robot.move(BASE_SPEED, BASE_SPEED);
                 while (flagSeguelinha)
                 {
+                    //robot.lcd1("SEGUE LINHA WHILE");
                     Serial.println("segue linha: ciclo infinito");
-                    followLine();
+                    int n = followLine();
+                    Serial.println(n);
+                    //delay(1000);
+                    //if(verificaLinhaSala(3) && millis() - tempoEntradaSala >= 4000){
+                    if(n>3 && millis() - tempoEntradaSala >= 4000){
+                        flagEsqueda=false;
+                        robot.lcd1("SEGUE LINHA SAI SALA");
+                        tone(9, 1500, 200);
+                        delay(700);
+                        flagEncomenda=true;
+                        break;
+                    }
                 }
             }
         }
@@ -311,4 +331,124 @@ void loop()
             Serial.println("Distância ideal — seguir em frente");
         }
     }
+}
+
+
+void segueParedeDireita(){
+    
+    uint16_t left = robot.getLidarLeftDistance();
+    uint16_t front = robot.getLidarFrontDistance();
+    uint16_t right = robot.getLidarRightDistance();
+
+    Serial.print("L: ");
+    Serial.print(left);
+    Serial.print(" | F: ");
+    Serial.print(front);
+    Serial.print(" | R: ");
+    Serial.println(right);
+
+    // PRIORIDADE 1: Virar à direita se NÃO houver parede à direita
+    if (right > DISTANCIA_PAREDE)
+    {
+        robot.move(60, 1);
+        Serial.println("Virar à direita (sem parede à direita)");
+        if (verificaLinhaSala(1))
+        {
+            robot.move(10,10);
+            tempoEntradaSala = millis();
+            flagSeguelinha = true;
+            Serial.println("segue linha: true");
+            if (flagSeguelinha)
+            {
+                uint16_t front = robot.getLidarFrontDistance();
+                //robot.stop();
+                tone(9, 1000, 200);
+                robot.lcd1("SEGUE LINHA TRUE");
+                //robot.move(BASE_SPEED, BASE_SPEED);
+                Serial.println("segue linha: true");
+                // robot.move(BASE_SPEED, BASE_SPEED);
+                while (flagSeguelinha)
+                {
+                    front = robot.getLidarFrontDistance();
+                    //robot.lcd1("SEGUE LINHA WHILE");
+                    Serial.println("segue linha: ciclo infinito");
+                    int n = followLine();
+                    Serial.println(n);
+                    //delay(1000);
+                    //if(verificaLinhaSala(3) && millis() - tempoEntradaSala >= 4000){
+                    if(front<DISTANCIA_PAREDE && millis() - tempoEntradaSala >= 4000 && flagEncomenda){
+                        robot.stop();
+                        robot.move(-30,-30);
+                        delay(200);
+                        while (robot.readAdc(3)<branco)
+                        {
+                            robot.move(-15,15);
+                        }
+                        while (robot.readAdc(3)>branco)
+                        {
+                            robot.move(-15,15);
+                        }
+                        
+                        flagEncomenda=false;
+                    }
+
+                    if(n>3 && flagEncomenda==false){
+                        flagEsqueda=false;
+                        robot.lcd1("SEGUE LINHA SAI SALA");
+                        tone(9, 1500, 200);
+                        delay(700);
+                        break;
+                    }
+
+                }
+            }
+        }
+    }
+    // PRIORIDADE 2: Virar à direita se HÁ parede à frente E à esquerda
+    else if (front < DISTANCIA_PAREDE_FRENTE && right < DISTANCIA_PAREDE)
+    {
+        robot.move(-10, 60); // curva acentuada à esqueda
+        Serial.println("Virar à esquerda (parede à frente e à direita)");
+    }
+    // PRIORIDADE 3: Ajustar distância à parede da esquerda
+    else
+    {
+        if (right < IDEAL_MIN)
+        {
+            robot.move(10, 35);
+            Serial.println("Afastar da parede à Direita");
+        }
+        else if (right > IDEAL_MAX)
+        {
+            robot.move(35, 10);
+            Serial.println("Aproximar da parede à Direita");
+        }
+        else
+        {
+            robot.move(35, 35);
+            Serial.println("Distância ideal — seguir em frente");
+        }
+    }
+}
+
+// TESTE
+/* The setup function runs once when you press reset or power the board */
+void loop()
+{
+    //followLine();
+    //segueParedeDireita();
+
+    if (flagEsqueda)
+        segueParedeEsquerda();
+    else if(flagEncomenda && flagEsqueda==false){
+        tone(9, 100, 300);
+        tone(9, 200, 300);
+        tone(9, 300, 300);
+        tone(9, 400, 300);
+        segueParedeDireita();
+    }
+    else{
+        segueParedeEsquerda();
+    }
+
 }
